@@ -1,16 +1,17 @@
-streamlit>=1.28.0
-streamlit-extras>=0.4.0
+streamlit>=1.30.0
 pandas>=2.0.0
 numpy>=1.24.0
-pillow>=10.0.0
 torch>=2.0.0
 torchvision>=0.15.0
-transformers>=4.30.0
-diffusers>=0.25.0
-accelerate>=0.25.0
+Pillow>=9.0.0
 opencv-python-headless>=4.8.0
-segment-anything>=1.0.0
-gradio>=3.50.0
-requests>=2.31.0
-python-dotenv>=1.0.0
-stqdm>=0.0.5
+plotly>=5.18.0
+
+# Optional: YOLOv11 detection
+ultralytics>=8.3.0
+
+# Optional: DINOv2 feature extraction
+transformers>=4.40.0
+
+# Optional: Diffusion inpainting
+diffusers>=0.25.0

@@ -1,0 +1,98 @@
+syntax = "proto3";
+
+package mural;
+
+service MuralVectorDB {
+  // Insert mural feature vectors into the database
+  rpc Insert(InsertRequest) returns (InsertResponse);
+  // Search for k most similar murals by style/features
+  rpc Search(SearchRequest) returns (SearchResponse);
+  // Delete mural entries by IDs
+  rpc Delete(DeleteRequest) returns (DeleteResponse);
+  // Get database stats
+  rpc Stats(StatsRequest) returns (StatsResponse);
+  // Log a restoration decision to the audit chain
+  rpc LogRestoration(RestorationLogRequest) returns (RestorationLogResponse);
+  // Get recent audit entries
+  rpc GetAudit(GetAuditRequest) returns (GetAuditResponse);
+}
+
+message Vector {
+  string id = 1;
+  repeated float values = 2;
+  map<string, string> metadata = 3;
+}
+
+message InsertRequest {
+  repeated Vector vectors = 1;
+}
+
+message InsertResponse {
+  int32 inserted = 1;
+}
+
+message SearchRequest {
+  repeated float query = 1;
+  int32 k = 2;
+  map<string, string> filter = 3;
+}
+
+message SearchResult {
+  string id = 1;
+  repeated float values = 2;
+  float distance = 3;
+  map<string, string> metadata = 4;
+}
+
+message SearchResponse {
+  repeated SearchResult results = 1;
+}
+
+message DeleteRequest {
+  repeated string ids = 1;
+}
+
+message DeleteResponse {
+  int32 deleted = 1;
+}
+
+message StatsRequest {}
+
+message StatsResponse {
+  int64 total_vectors = 1;
+  int32 dimension = 2;
+  int64 index_size = 3;
+}
+
+message RestorationLogRequest {
+  string mural_id = 1;
+  string defect_type = 2;       // flaking, saline, hollowing, cracking, fading, mold
+  string restoration_method = 3; // inpainting, color_transfer, texture_synthesis
+  string reference_id = 4;      // reference mural used for style matching
+  string expert_id = 5;         // expert who approved
+  float confidence = 6;         // model confidence score
+}
+
+message RestorationLogResponse {
+  bool success = 1;
+  string block_hash = 2;
+  int64 block_index = 3;
+}
+
+message GetAuditRequest {
+  int32 limit = 1;
+}
+
+message AuditEntry {
+  int64 index = 1;
+  string timestamp = 2;
+  string operation = 3;
+  string hash = 4;
+  string prev_hash = 5;
+}
+
+message GetAuditResponse {
+  repeated AuditEntry entries = 1;
+  int64 total = 2;
+  bool chain_valid = 3;
+}

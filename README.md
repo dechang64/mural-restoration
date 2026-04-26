@@ -1,125 +1,104 @@
-# 🏛️ 壁画守护者 (Mural Guardian)
+<div align="center">
 
-> 基于AI的敦煌壁画智能修复与保护平台
+# 🏛️ Mural Guardian v2
 
-![Streamlit](https://img.shields.io/badge/Streamlit-1.28-red)
-![Python](https://img.shields.io/badge/Python-3.9-blue)
-![PyTorch](https://img.shields.io/badge/PyTorch-2.0-orange)
-![License](https://img.shields.io/badge/License-MIT-green)
+### 联邦学习驱动的敦煌壁画智能修复与保护平台
 
-## ✨ 核心功能
+**壁画数据不出机构 — 但修复智慧在社群间流动**
 
-| 功能 | 描述 | 技术 |
-|------|------|------|
-| 🔬 **病害智能检测** | 自动识别壁画病害（起甲、酥碱、空鼓等） | SAM + UNet |
-| 🎨 **风格一致修复** | 基于同期文物生成风格匹配的修复方案 | Stable Diffusion + ControlNet |
-| 🔍 **相似文物检索** | 基于HNSW向量检索找到相似壁画图谱 | ResNet-18 + Rust HNSW |
-| 📋 **修复审计追溯** | 区块链哈希链确保修复决策可追溯 | SHA-256 Hash Chain |
+[![Rust](https://img.shields.io/badge/Rust-1.70+-orange?logo=rust)](https://www.rust-lang.org/)
+[![Python](https://img.shields.io/badge/Python-3.10+-blue?logo=python)](https://python.org/)
+[![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c?logo=pytorch)](https://pytorch.org/)
+[![YOLOv11](https://img.shields.io/badge/YOLO-v11-9b59b6)](https://docs.ultralytics.com/)
+[![DINOv2](https://img.shields.io/badge/DINOv2-Meta-blueviolet)](https://github.com/facebookresearch/dinov2)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-## 🚀 快速开始
-
-### 本地运行
-
-```bash
-# 克隆项目
-git clone https://github.com/dechang64/mural-restoration.git
-cd mural-restoration
-
-# 安装依赖
-pip install -r requirements.txt
-
-# 下载SAM模型权重 (可选)
-# wget https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth
-
-# 运行应用
-streamlit run app.py
-```
-
-### Streamlit Cloud 部署
-
-[![Deploy to Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_github.svg)](https://share.streamlit.io/)
-
-1. Fork 此仓库
-2. 访问 [share.streamlit.io](https://share.streamlit.io/)
-3. 选择你的仓库和 `app.py`
-4. 部署完成！
-
-## 🏗️ 系统架构
-
-```
-┌──────────────────────────────────────────────────────────────────┐
-│                         前端展示层 (Streamlit)                      │
-│   病害标注 | 修复预览 | 风格检索 | 审计追溯                          │
-└────────────────────────────┬─────────────────────────────────────┘
-                             │
-┌────────────────────────────▼─────────────────────────────────────┐
-│                      API 网关层 (FastAPI)                          │
-│   /detect    /restore   /search   /audit                          │
-└────────────────────────────┬─────────────────────────────────────┘
-                             │
-        ┌────────────────────┼────────────────────┐
-        ▼                    ▼                    ▼
-┌───────────────┐    ┌───────────────┐    ┌───────────────┐
-│  病害检测服务  │    │  修复生成服务  │    │  向量检索服务  │
-│  SAM + UNet   │    │  ControlNet   │    │  HNSW (Rust)  │
-│  PyTorch      │    │  + LoRA       │    │  gRPC         │
-└───────────────┘    └───────────────┘    └───────────────┘
-```
-
-## 📁 项目结构
-
-```
-mural-restoration/
-├── app.py                 # Streamlit 主应用
-├── requirements.txt       # Python 依赖
-├── PROPOSAL.md           # 项目提案文档
-├── README.md             # 项目说明
-├── models/               # 模型权重 (可选)
-│   └── sam_vit_b_01ec64.pth
-├── data/                 # 数据目录
-│   ├── raw/             # 原始壁画图片
-│   ├── masks/           # 病害标注
-│   └── results/         # 修复结果
-└── utils/               # 工具函数
-    ├── detection.py     # 病害检测
-    ├── restoration.py   # 修复生成
-    ├── search.py        # 风格检索
-    └── audit.py         # 审计追溯
-```
-
-## 🔬 技术栈
-
-| 组件 | 技术选型 | 说明 |
-|------|---------|------|
-| 前端 | Streamlit | 快速构建数据应用 |
-| 病害检测 | SAM (Segment Anything) | Meta 开源的分割模型 |
-| 图像生成 | Stable Diffusion | 扩散模型生成修复方案 |
-| 特征提取 | ResNet-18 / ViT | 图像特征向量化 |
-| 向量检索 | HNSW | 高效近似最近邻检索 |
-| 联邦学习 | PyTorch + gRPC | 多机构协同训练 |
-| 区块链审计 | SHA-256 Hash Chain | 操作不可篡改 |
-
-## 📊 预期效果
-
-- 🔬 病害识别准确率: > 90%
-- ⚡ 修复方案生成时间: < 30秒/图
-- 🔍 风格检索召回率: > 85%
-- ⛓️ 区块链存证: 全流程可审计
-
-## 🗺️ 发展路线
-
-- [ ] **Phase 1**: MVP - Streamlit 单机版
-- [ ] **Phase 2**: 联邦学习版 - 多机构协作
-- [ ] **Phase 3**: 生产级 - API + 移动端AR
-
-## 🤝 贡献
-
-欢迎提交 Issue 和 Pull Request！
-
-## 📄 许可证
-
-MIT License
+</div>
 
 ---
 
-🏛️ **壁画守护者** - 用AI守护千年文化遗产
+## 🎯 Problem
+
+敦煌莫高窟拥有 **4.5万㎡壁画**，但仅有 **100多名修复师**：
+- **数据孤岛**: 各机构壁画数据受文物保护法规限制，无法共享
+- **修复一致性**: 修复师个人风格差异大，同期文物风格不统一
+- **病害发现滞后**: 依赖专家肉眼识别，微小病害难以及时发现
+
+## 🆕 v2 Features
+
+| Feature | v1 (MVP) | v2 |
+|---------|----------|----|
+| Defect Detection | SAM (mock) | **YOLOv11** (6 defect types) |
+| Feature Extraction | — | **DINOv2** (768-dim style features) |
+| Style Search | Hardcoded list | **HNSW vector search** (Rust) |
+| Virtual Restoration | Median filter | **Diffusion inpainting** |
+| FL Engine | — | **FedAvg** (multi-institution) |
+| Backend | — | **Rust** (HNSW + gRPC + audit chain) |
+| Audit | SHA-256 in-memory | **Blockchain hash chain** (Rust) |
+| Dashboard | Streamlit | **Axum web dashboard** |
+
+## 🏥 Defect Types
+
+| # | Type (EN) | 中文 | Severity |
+|---|-----------|------|----------|
+| 0 | Flaking | 起甲 | 🟡 Major |
+| 1 | Saline | 酥碱 | 🔴 Critical |
+| 2 | Hollowing | 空鼓 | 🔴 Critical |
+| 3 | Cracking | 裂隙 | 🟡 Major |
+| 4 | Fading | 褪色 | 🟢 Minor |
+| 5 | Mold | 霉变 | 🟡 Major |
+
+## 🚀 Quick Start
+
+```bash
+# Server (Rust)
+cargo run
+
+# Client (Python)
+cd python && pip install -r requirements.txt
+python -c "
+from analysis import MuralFeatureExtractor, MuralDefectDetector
+import numpy as np
+
+# Feature extraction
+ext = MuralFeatureExtractor(mode='mock', dim=768)
+img = np.random.randint(0, 255, (224, 224, 3), dtype=np.uint8)
+feat = ext.extract(img, mural_id='cave_45_north')
+print(f'Feature dim: {feat.dim}')
+
+# Defect detection
+det = MuralDefectDetector(mode='mock')
+result = det.detect(img, mural_id='cave_45')
+print(f'Defects found: {result.num_defects}')
+print(f'Health score: {result.health_score:.1f}')
+"
+```
+
+## 📊 Tests
+
+```bash
+cd python && python -m pytest tests/ -v
+# 42 passed
+```
+
+## 🤝 Related Projects
+
+| Project | Domain | Shared Infra |
+|---------|--------|-------------|
+| [organoid-fl](https://github.com/dechang64/organoid-fl) | Medical imaging | YOLOv11, DINOv2, SAM2, Grad-CAM |
+| [embodied-fl](https://github.com/dechang64/embodied-fl) | Robotics | DINOv2, Multi-Task FL |
+| [defect-fl](https://github.com/dechang64/defect-fl) | PCB inspection | YOLOv11, DINOv2, FedAvg |
+| [FundFL](https://github.com/dechang64/FundFL) | Finance | HNSW, audit chain |
+| [Reading-FL](https://github.com/dechang64/reading-fl) | Reading | DINOv2, FedAvg |
+
+## 📄 License
+
+Apache-2.0
+
+---
+
+<div align="center">
+
+**Mural Guardian v2** — 用AI守护千年文化遗产
+
+</div>
