@@ -27,12 +27,22 @@ from enum import IntEnum, Enum
 import io
 import base64
 
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import DataLoader, TensorDataset
 from PIL import Image
-import cv2
+
+try:
+    import torch
+    import torch.nn as nn
+    import torch.optim as optim
+    from torch.utils.data import DataLoader, TensorDataset
+    HAS_TORCH = True
+except ImportError:
+    HAS_TORCH = False
+
+try:
+    import cv2
+    HAS_CV2 = True
+except ImportError:
+    HAS_CV2 = False
 
 # ==================== 配置 ====================
 st.set_page_config(
@@ -297,9 +307,8 @@ class MuralRestorationEngine:
         h, w = image.shape[:2]
 
         if self.mode == "inpaint" and self._inpaint_pipeline is not None:
-            from PIL import Image as PILImage
-            img_pil = PILImage.fromarray(image)
-            mask_pil = PILImage.fromarray(mask)
+            img_pil = Image.fromarray(image)
+            mask_pil = Image.fromarray(mask)
             default_prompt = prompt or "ancient Chinese mural painting, Dunhuang style, Buddhist art, detailed, high quality"
             result_pil = self._inpaint_pipeline(
                 prompt=default_prompt, image=img_pil, mask_image=mask_pil,
@@ -410,7 +419,6 @@ class MuralFeatureExtractor:
                 feature=feature, dim=self._dim,
             )
 
-        from PIL import Image as PILImage
         from torchvision import transforms
 
         preprocess = transforms.Compose([
@@ -421,7 +429,7 @@ class MuralFeatureExtractor:
                                  std=[0.229, 0.224, 0.225]),
         ])
 
-        pil_img = PILImage.fromarray(image.astype(np.uint8))
+        pil_img = Image.fromarray(image.astype(np.uint8))
         img_tensor = preprocess(pil_img).unsqueeze(0).to(self._device)
 
         with torch.no_grad():
