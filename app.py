@@ -1,6 +1,6 @@
 """
 🏛️ 壁画守护者 (Mural Guardian) - v2.0
-基于AI的敦煌壁画智能修复与保护平台
+基于AI的壁画智能修复与保护平台
 
 功能:
 1. 病害智能检测 (基于YOLOv11 / SAM)
@@ -309,7 +309,7 @@ class MuralRestorationEngine:
         if self.mode == "inpaint" and self._inpaint_pipeline is not None:
             img_pil = Image.fromarray(image)
             mask_pil = Image.fromarray(mask)
-            default_prompt = prompt or "ancient Chinese mural painting, Dunhuang style, Buddhist art, detailed, high quality"
+            default_prompt = prompt or "ancient mural painting, traditional style, detailed, high quality, professional restoration"
             result_pil = self._inpaint_pipeline(
                 prompt=default_prompt, image=img_pil, mask_image=mask_pil,
             ).images[0]
@@ -952,14 +952,14 @@ def create_audit_record(operation: str, data: dict, result: dict) -> dict:
 # ============================================================
 
 MURAL_DATABASE = [
-    {'id': 'M001', 'name': '反弹琵琶伎乐天', 'dynasty': '唐代', 'cave': '莫高窟第112窟', 'similarity': 0.94},
-    {'id': 'M002', 'name': '说法图', 'dynasty': '北魏', 'cave': '莫高窟第259窟', 'similarity': 0.89},
-    {'id': 'M003', 'name': '飞天', 'dynasty': '唐代', 'cave': '莫高窟第321窟', 'similarity': 0.87},
-    {'id': 'M004', 'name': '萨埵那太子舍身饲虎', 'dynasty': '北魏', 'cave': '莫高窟第254窟', 'similarity': 0.85},
-    {'id': 'M005', 'name': '观无量寿经变', 'dynasty': '唐代', 'cave': '莫高窟第172窟', 'similarity': 0.82},
-    {'id': 'M006', 'name': '九色鹿本生', 'dynasty': '北魏', 'cave': '莫高窟第257窟', 'similarity': 0.80},
-    {'id': 'M007', 'name': '维摩诘经变', 'dynasty': '盛唐', 'cave': '莫高窟第103窟', 'similarity': 0.78},
-    {'id': 'M008', 'name': '药师经变', 'dynasty': '初唐', 'cave': '莫高窟第220窟', 'similarity': 0.76},
+    {'id': 'M001', 'name': '天使报喜图', 'dynasty': '文艺复兴', 'cave': '西斯廷礼拜堂', 'similarity': 0.94},
+    {'id': 'M002', 'name': '最后的晚餐', 'dynasty': '文艺复兴', 'cave': '恩宠圣母堂', 'similarity': 0.89},
+    {'id': 'M003', 'name': '创世纪', 'dynasty': '文艺复兴', 'cave': '西斯廷礼拜堂', 'similarity': 0.87},
+    {'id': 'M004', 'name': '雅典学院', 'dynasty': '文艺复兴', 'cave': '梵蒂冈使徒宫', 'similarity': 0.85},
+    {'id': 'M005', 'name': '最后的审判', 'dynasty': '中世纪', 'cave': '奥尔维耶托大教堂', 'similarity': 0.82},
+    {'id': 'M006', 'name': '圣母子与天使', 'dynasty': '文艺复兴', 'cave': '乌菲兹美术馆', 'similarity': 0.80},
+    {'id': 'M007', 'name': '纳税银', 'dynasty': '文艺复兴', 'cave': '卡尔米内圣母大殿', 'similarity': 0.78},
+    {'id': 'M008', 'name': '哀悼基督', 'dynasty': '文艺复兴', 'cave': '梵蒂冈圣彼得大教堂', 'similarity': 0.76},
 ]
 
 
@@ -999,7 +999,7 @@ init_session()
 # ============================================================
 
 st.markdown('<h1 class="main-header">🏛️ 壁画守护者</h1>', unsafe_allow_html=True)
-st.markdown('<p class="sub-header">基于AI的敦煌壁画智能修复与保护平台 · v2.0</p>', unsafe_allow_html=True)
+st.markdown('<p class="sub-header">基于AI的壁画智能修复与保护平台 · v2.0</p>', unsafe_allow_html=True)
 
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "🔬 病害检测",
@@ -1110,7 +1110,7 @@ with tab2:
         st.subheader("📤 上传待修复壁画")
         restore_file = st.file_uploader("选择需要修复的壁画", type=['png', 'jpg', 'jpeg'], key="restore_upload")
 
-        style_options = ["敦煌唐代风格", "敦煌北魏风格", "西域风格", "中原风格", "自动识别"]
+        style_options = ["古典写实风格", "拜占庭风格", "文艺复兴风格", "东方水墨风格", "自动识别"]
         selected_style = st.selectbox("🎨 修复风格", style_options)
         strength = st.slider("修复强度", 0.1, 1.0, 0.7, 0.1)
 
@@ -1231,7 +1231,7 @@ with tab3:
                         with col_t1:
                             st.markdown(f"**🏛️ 朝代:** {mural['dynasty']}")
                         with col_t2:
-                            st.markdown(f"**🕳️ 洞窟:** {mural['cave']}")
+                            st.markdown(f"**📍 位置:** {mural['cave']}")
                         col_s1, col_s2 = st.columns([2, 1])
                         with col_s1:
                             st.progress(mural['similarity'], text=f"相似度: {mural['similarity']*100:.1f}%")
@@ -1419,12 +1419,12 @@ with tab6:
     with col_nft1:
         st.subheader("📜 铸造新藏品")
 
-        cave_id = st.text_input("洞窟编号", value="cave_112")
+        cave_id = st.text_input("位置编号", value="cave_112")
         wall = st.selectbox("墙面位置", ["north", "south", "east", "west", "ceiling"])
         dynasty = st.selectbox("朝代", ["tang", "song", "yuan", "ming", "qing", "northern_wei", "five_dynasties"])
-        location = st.text_input("地点", value="莫高窟")
+        location = st.text_input("地点", value="未知")
         period = st.text_input("时期", value="盛唐 (705-781)")
-        description = st.text_input("描述", value="反弹琵琶伎乐天")
+        description = st.text_input("描述", value="天使报喜图")
 
         defect_type = st.selectbox("病害类型", [dt.label_en for dt in DefectType])
         defect_severity = st.selectbox("病害严重程度", ["minor", "major", "critical"])
@@ -1529,7 +1529,7 @@ with st.sidebar:
     st.info("""
     **壁画守护者 v2.0**
 
-    基于AI的敦煌壁画智能修复与保护平台
+    基于AI的壁画智能修复与保护平台
 
     ✨ 核心功能:
     - 🔬 病害智能检测 (YOLOv11)
