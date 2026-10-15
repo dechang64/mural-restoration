@@ -15,6 +15,25 @@
 
 </div>
 
+
+## ⚠️ 当前状态（2026-10-16 审计修正）
+
+**本仓库当前为交互式原型（Prototype），不是 README 下方 v2 表格中的完整系统。**
+
+| 承诺项 | 现状 |
+|--------|------|
+| Rust 后端 (HNSW+gRPC+审计链) | 🚧 Roadmap，未实现 |
+| Axum Web 仪表盘 | 🚧 Roadmap（当前为 Streamlit 单体应用 app.py） |
+| YOLOv11 病害检测 | ⚠️ 需自备**壁画病害微调权重**；无权重时自动降级为模拟模式（界面有明确标识） |
+| DINOv2 特征提取 | ⚠️ 同上，可选真实模型或模拟模式 |
+| 扩散修复 (Diffusion Inpainting) | ⚠️ 同上（默认 sd-v1-5-inpainting） |
+| 联邦学习 FedAvg | ✅ 已实现（模拟数据演示） |
+| 审计哈希链 | ✅ 已实现（内存版；持久化见 Roadmap） |
+| 数字藏品 | 🔒 默认关闭（`MG_ENABLE_NFT=1` 开启；对文博场景不建议开启） |
+
+**演示模式说明**：未加载真实模型权重时，检测/修复结果为**模拟数据**，仅用于交互演示，
+不可作为任何真实修复决策依据。用户可见指标均为真实计算或明确标注"演示模式"。
+
 ---
 
 ## 🎯 Problem
@@ -77,8 +96,8 @@ print(f'Health score: {result.health_score:.1f}')
 ## 📊 Tests
 
 ```bash
-cd python && python -m pytest tests/ -v
-# 42 passed
+python -m pytest tests/ -v
+# 14 passed (stub-based 冒烟测试: 种子确定性/审计链防篡改/演示数据标注/NFT默认关闭等)
 ```
 
 ## 🤝 Related Projects

@@ -26,6 +26,9 @@ from dataclasses import dataclass, field, asdict
 from enum import IntEnum, Enum
 import io
 import base64
+import zlib
+import os
+from contextlib import nullcontext
 
 from PIL import Image
 
@@ -43,6 +46,11 @@ try:
     HAS_CV2 = True
 except ImportError:
     HAS_CV2 = False
+
+# ==================== 功能开关 ====================
+# 数字藏品模块默认关闭: 对文博受众是监管与调性双重风险(2026-10-16审计)
+# 如需启用: MG_ENABLE_NFT=1 streamlit run app.py
+ENABLE_NFT = os.environ.get("MG_ENABLE_NFT", "0") == "1"
 
 # ==================== 配置 ====================
 st.set_page_config(
@@ -205,17 +213,25 @@ class MuralDefectDetector:
     """壁画病害检测器 (支持YOLOv11和模拟模式)"""
 
     def __init__(self, mode: str = "mock", conf_threshold: float = 0.5,
-                 iou_threshold: float = 0.45):
+                 iou_threshold: float = 0.45, weights: str = ""):
         self.mode = mode
         self.conf_threshold = conf_threshold
         self.iou_threshold = iou_threshold
         self._model = None
+        self._fallback_reason = ""
         if mode == "yolo":
-            try:
-                from ultralytics import YOLO
-                self._model = YOLO("yolo11n.pt")
-            except ImportError:
+            # 必须使用针对壁画病害微调过的权重(6类: 起甲/酥碱/空鼓/裂隙/褪色/霉变)。
+            # COCO通用权重(yolo11n.pt)不可用于病害检测 —— 2026-10-16审计修正。
+            if not weights:
                 self.mode = "mock"
+                self._fallback_reason = "未提供病害检测权重(weights=)，已从yolo降级为mock"
+            else:
+                try:
+                    from ultralytics import YOLO
+                    self._model = YOLO(weights)
+                except Exception as e:
+                    self.mode = "mock"
+                    self._fallback_reason = f"权重加载失败({weights}): {e}"
 
     def detect(self, image: np.ndarray, mural_id: str = "mural_0") -> DetectionResult:
         start = time.time()
@@ -229,15 +245,18 @@ class MuralDefectDetector:
             defects = []
             for r in results:
                 for box in r.boxes:
+                    cls_id = int(box.cls[0])
+                    if cls_id < 0 or cls_id > 5:
+                        continue  # 非病害类别，跳过(审计修正: 原 %6 硬映射是科学错误)
                     x1, y1, x2, y2 = box.xyxy[0].tolist()
                     defects.append(DefectBox(
                         x1=x1, y1=y1, x2=x2, y2=y2,
                         confidence=float(box.conf[0]),
-                        class_id=int(box.cls[0]) % 6,
+                        class_id=cls_id,
                     ))
         else:
             # 模拟检测
-            rng = np.random.RandomState(hash(mural_id) % 2**31)
+            rng = np.random.RandomState(zlib.crc32(str(mural_id).encode('utf-8')) % 2**31)
             n_defects = rng.randint(2, 6)
             defects = []
             for _ in range(n_defects):
@@ -292,7 +311,7 @@ class MuralRestorationEngine:
             try:
                 from diffusers import StableDiffusionInpaintPipeline
                 self._inpaint_pipeline = StableDiffusionInpaintPipeline.from_pretrained(
-                    "runwayml/stable-diffusion-inpainting",
+                    "stable-diffusion-v1-5/stable-diffusion-inpainting",  # 审计修正: runwayml权重已下架
                     torch_dtype=torch.float16,
                 )
                 if torch.cuda.is_available():
@@ -316,6 +335,8 @@ class MuralRestorationEngine:
             restored = np.array(result_pil)
         else:
             # 模拟修复: 中值滤波 + 边缘羽化混合
+            if not HAS_CV2:
+                raise RuntimeError("模拟修复依赖opencv-python-headless，请安装: pip install opencv-python-headless")
             restored = image.copy()
             mask_bool = mask > 0
             for i in range(3):
@@ -340,7 +361,7 @@ class MuralRestorationEngine:
             method=self.mode,
             restored_image=restored,
             defect_mask=mask.astype(np.uint8) if mask.ndim == 2 else mask[:, :, 0].astype(np.uint8),
-            confidence=0.92,
+            confidence=0.0,  # 演示模式: 置信度不可用，UI显示"—"(审计修正: 原硬编码0.92)
             reference_id=reference_id,
             processing_time_ms=round(elapsed, 1),
             defects_restored=1,
@@ -401,7 +422,10 @@ class MuralFeatureExtractor:
         if mode == "legacy" or (mode == "dinov2" and self._model is None):
             try:
                 import torchvision.models as models
-                resnet = models.resnet18(pretrained=True)
+                try:
+                    resnet = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
+                except TypeError:
+                    resnet = models.resnet18(pretrained=True)  # 旧版torchvision回退
                 self._model = nn.Sequential(*list(resnet.children())[:-1])
                 self._model.to(self._device).eval()
                 self._dim = 512
@@ -411,7 +435,7 @@ class MuralFeatureExtractor:
     def extract(self, image: np.ndarray, mural_id: str = "",
                 cave: str = "", wall: str = "", dynasty: str = "") -> MuralFeature:
         if self.mode == "mock":
-            rng = np.random.RandomState(hash(mural_id) % 2**31)
+            rng = np.random.RandomState(zlib.crc32(str(mural_id).encode('utf-8')) % 2**31)
             feature = rng.randn(self._dim).astype(np.float32)
             feature = feature / (np.linalg.norm(feature) + 1e-8)
             return MuralFeature(
@@ -951,16 +975,25 @@ def create_audit_record(operation: str, data: dict, result: dict) -> dict:
 # 模拟壁画数据库
 # ============================================================
 
+# 合成演示数据(2026-10-16审计修正: 原为欧洲宗教画+外链picsum，与敦煌定位冲突)
+# TODO: 接入真实敦煌公开数据集后替换
 MURAL_DATABASE = [
-    {'id': 'M001', 'name': '天使报喜图', 'dynasty': '文艺复兴', 'cave': '西斯廷礼拜堂', 'similarity': 0.94},
-    {'id': 'M002', 'name': '最后的晚餐', 'dynasty': '文艺复兴', 'cave': '恩宠圣母堂', 'similarity': 0.89},
-    {'id': 'M003', 'name': '创世纪', 'dynasty': '文艺复兴', 'cave': '西斯廷礼拜堂', 'similarity': 0.87},
-    {'id': 'M004', 'name': '雅典学院', 'dynasty': '文艺复兴', 'cave': '梵蒂冈使徒宫', 'similarity': 0.85},
-    {'id': 'M005', 'name': '最后的审判', 'dynasty': '中世纪', 'cave': '奥尔维耶托大教堂', 'similarity': 0.82},
-    {'id': 'M006', 'name': '圣母子与天使', 'dynasty': '文艺复兴', 'cave': '乌菲兹美术馆', 'similarity': 0.80},
-    {'id': 'M007', 'name': '纳税银', 'dynasty': '文艺复兴', 'cave': '卡尔米内圣母大殿', 'similarity': 0.78},
-    {'id': 'M008', 'name': '哀悼基督', 'dynasty': '文艺复兴', 'cave': '梵蒂冈圣彼得大教堂', 'similarity': 0.76},
+    {'id': 'M001', 'name': '鹿王本生图(演示数据)', 'dynasty': '北魏', 'cave': '莫高窟第257窟', 'similarity': 0.94},
+    {'id': 'M002', 'name': '反弹琵琶(演示数据)', 'dynasty': '中唐', 'cave': '莫高窟第112窟', 'similarity': 0.89},
+    {'id': 'M003', 'name': '都督夫人礼佛图(演示数据)', 'dynasty': '盛唐', 'cave': '莫高窟第130窟', 'similarity': 0.87},
+    {'id': 'M004', 'name': '五百强盗成佛(演示数据)', 'dynasty': '西魏', 'cave': '莫高窟第285窟', 'similarity': 0.85},
+    {'id': 'M005', 'name': '维摩诘经变(演示数据)', 'dynasty': '初唐', 'cave': '莫高窟第220窟', 'similarity': 0.82},
+    {'id': 'M006', 'name': '观无量寿经变(演示数据)', 'dynasty': '盛唐', 'cave': '莫高窟第172窟', 'similarity': 0.80},
+    {'id': 'M007', 'name': '张骞出使西域(演示数据)', 'dynasty': '初唐', 'cave': '莫高窟第323窟', 'similarity': 0.78},
+    {'id': 'M008', 'name': '于阗国王供养像(演示数据)', 'dynasty': '五代', 'cave': '莫高窟第98窟', 'similarity': 0.76},
 ]
+
+
+def _placeholder_image(seed_id: str, size=(200, 200)) -> Image.Image:
+    """本地生成占位图，替代 picsum.photos 外链(数据不出机构叙事一致)"""
+    h = zlib.crc32(seed_id.encode('utf-8')) & 0xFFFFFF
+    img = Image.new('RGB', size, ((h >> 16) & 0xE0 | 0x10, (h >> 8) & 0xE0 | 0x10, h & 0xE0 | 0x10))
+    return img
 
 
 # ============================================================
@@ -990,6 +1023,8 @@ def init_session():
         st.session_state.last_restoration = None
     if 'last_feature' not in st.session_state:
         st.session_state.last_feature = None
+    if 'restore_image' not in st.session_state:
+        st.session_state.restore_image = None
 
 init_session()
 
@@ -1001,20 +1036,31 @@ init_session()
 st.markdown('<h1 class="main-header">🏛️ 壁画守护者</h1>', unsafe_allow_html=True)
 st.markdown('<p class="sub-header">基于AI的壁画智能修复与保护平台 · v2.0</p>', unsafe_allow_html=True)
 
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+_tabs = st.tabs([
     "🔬 病害检测",
     "🎨 智能修复",
     "🔍 风格检索",
     "📋 审计追溯",
     "🤝 联邦学习",
     "💎 数字藏品",
+] if ENABLE_NFT else [
+    "🔬 病害检测",
+    "🎨 智能修复",
+    "🔍 风格检索",
+    "📋 审计追溯",
+    "🤝 联邦学习",
 ])
 
+
+tab1, tab2, tab3, tab4, tab5 = _tabs[:5]
+tab6 = _tabs[5] if ENABLE_NFT else None
 
 # ==================== Tab 1: 病害检测 ====================
 with tab1:
     st.header("🔬 壁画病害智能检测")
     st.markdown("基于YOLOv11自动识别6类壁画病害：起甲、酥碱、空鼓、裂隙、褪色、霉变")
+    if st.session_state.detector.mode != "yolo":
+        st.warning("⚠️ 演示模式：未加载病害检测权重，结果为模拟数据，不可作为修复依据")
 
     col1, col2 = st.columns([1, 1])
 
@@ -1116,6 +1162,7 @@ with tab2:
 
         if restore_file:
             restore_image = Image.open(restore_file).convert('RGB')
+            st.session_state.restore_image = restore_image
             st.image(restore_image, caption="待修复壁画", use_container_width=True)
 
             if st.button("✨ 生成修复方案", type="primary"):
@@ -1147,7 +1194,8 @@ with tab2:
     with col2:
         st.subheader("🎯 修复预览")
 
-        if st.session_state.last_restoration is not None:
+        restore_image = st.session_state.restore_image
+        if st.session_state.last_restoration is not None and restore_image is not None:
             rest_result = st.session_state.last_restoration
             restored_img = Image.fromarray(rest_result.restored_image)
             st.image(restored_img, caption=f"修复结果 ({selected_style})", use_container_width=True)
@@ -1167,12 +1215,37 @@ with tab2:
 
             st.subheader("📊 修复质量评估")
             col_m1, col_m2, col_m3 = st.columns(3)
+            # 审计修正(2026-10-16): 原三指标均为 np.random 掷骰子，改为真实可复算指标
             with col_m1:
-                st.metric("风格一致度", f"{np.random.uniform(85, 98):.1f}%")
+                try:
+                    feat_a = st.session_state.feature_extractor.extract(
+                        np.array(restore_image), mural_id="qa_before")
+                    feat_b = st.session_state.feature_extractor.extract(
+                        np.array(restored_img), mural_id="qa_after")
+                    _sim = float(np.dot(feat_a.feature, feat_b.feature) /
+                                 (np.linalg.norm(feat_a.feature) * np.linalg.norm(feat_b.feature) + 1e-8))
+                    st.metric("风格一致度(特征余弦)", f"{_sim:.3f}")
+                except Exception:
+                    st.metric("风格一致度", "—(特征提取不可用)")
             with col_m2:
-                st.metric("色彩还原度", f"{np.random.uniform(80, 95):.1f}%")
+                try:
+                    arr_o = np.array(restore_image).astype(np.float32)
+                    arr_r = np.array(restored_img).astype(np.float32)
+                    m = rest_result.defect_mask.astype(bool)
+                    if m.shape != arr_o.shape[:2]:
+                        m = cv2.resize(m.astype(np.uint8), (arr_o.shape[1], arr_o.shape[0])).astype(bool)
+                    if m.sum() > 0:
+                        mad = float(np.abs(arr_o[m] - arr_r[m]).mean())
+                        st.metric("修复区平均色差", f"{mad:.1f}/255")
+                    else:
+                        st.metric("修复区平均色差", "—(无mask)")
+                except Exception:
+                    st.metric("修复区平均色差", "—")
             with col_m3:
-                st.metric("修复置信度", f"{rest_result.confidence:.1%}")
+                if rest_result.confidence > 0:
+                    st.metric("修复置信度", f"{rest_result.confidence:.1%}")
+                else:
+                    st.metric("修复置信度", "—(演示模式)")
 
             buf = io.BytesIO()
             restored_img.save(buf, format="PNG")
@@ -1224,7 +1297,7 @@ with tab3:
                 with st.container():
                     col_i1, col_i2 = st.columns([1, 3])
                     with col_i1:
-                        st.image(f"https://picsum.photos/seed/{mural['id']}/200/200", width=120)
+                        st.image(_placeholder_image(mural['id']), width=120)
                     with col_i2:
                         st.markdown(f"### {mural['name']}")
                         col_t1, col_t2 = st.columns(2)
@@ -1410,7 +1483,7 @@ with tab5:
 
 
 # ==================== Tab 6: 数字藏品 ====================
-with tab6:
+with (tab6 if ENABLE_NFT else nullcontext()):
     st.header("💎 数字藏品铸造")
     st.markdown("为修复成果生成数字证书，记录壁画出处、修复过程和风格指纹")
 
