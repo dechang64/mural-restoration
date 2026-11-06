@@ -77,8 +77,9 @@ print(f'Health score: {result.health_score:.1f}')
 ## 📊 Tests
 
 ```bash
-cd python && python -m pytest tests/ -v
-# 42 passed
+# Tests are in the mural-restoration-upgrade repository (local development version)
+# GitHub version is single-file demo; full test suite lives in upgrade branch
+# 85 tests passed (local development environment)
 ```
 
 ## 🤝 Related Projects

@@ -545,6 +545,7 @@ class MuralFLEngine:
                 output = model(batch_x)
                 loss = criterion(output, batch_y)
                 loss.backward()
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
                 optimizer.step()
                 total_loss += loss.item()
                 n_batches += 1
@@ -563,15 +564,27 @@ class MuralFLEngine:
             "val_acc": val_acc,
         }
 
-    def _fedavg_aggregate(self, client_models: List[nn.Module]) -> None:
+    def _fedavg_aggregate(self, client_models: List[nn.Module], client_data_sizes: Optional[List[int]] = None) -> None:
+        if not client_models:
+            raise ValueError("client_models is empty, cannot aggregate")
         global_state = self.global_model.state_dict()
         aggregated = {}
+
+        if client_data_sizes is not None and len(client_data_sizes) == len(client_models):
+            total = sum(client_data_sizes)
+            if total == 0:
+                raise ValueError("Total client data size is zero, cannot aggregate")
+            weights = [n / total for n in client_data_sizes]
+        else:
+            weights = [1.0 / len(client_models)] * len(client_models)
+
         for key in global_state.keys():
             stacked = torch.stack([
                 client.state_dict()[key].float()
                 for client in client_models
             ], dim=0)
-            aggregated[key] = stacked.mean(dim=0).to(global_state[key].dtype)
+            w_tensor = torch.tensor(weights, dtype=stacked.dtype, device=stacked.device)
+            aggregated[key] = (stacked * w_tensor.unsqueeze(-1)).sum(dim=0).to(global_state[key].dtype)
         self.global_model.load_state_dict(aggregated)
 
     def run(self, features: np.ndarray, labels: np.ndarray,
